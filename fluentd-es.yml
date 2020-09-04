@@ -1,0 +1,111 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    k8s-app: fluentd-logging
+    kubernetes.io/cluster-service: "true"
+  name: fluentd-elasticsearch
+  namespace: kube-logging
+spec:
+  selector:
+    matchLabels:
+      k8s-app: fluentd-logging
+      kubernetes.io/cluster-service: "true"
+  template:
+    metadata:
+      labels:
+        k8s-app: fluentd-logging
+        kubernetes.io/cluster-service: "true"
+      name: fluentd-elasticsearch
+      namespace: kube-logging
+    spec:
+      containers:
+      - env:
+        - name: AWS_REGION
+          value: us-west-2
+        - name: AWS_ELASTICSEARCH_URL
+          value: <your Elastic URL>
+        - name: AWS_ACCESS_KEY_ID
+          value: <your access key>
+        - name: AWS_SECRET_ACCESS_KEY
+          value: <Your secret key>
+        - name: FLUENT_ELASTICSEARCH_BUFFER_QUEUE_LIMIT_LENGTH
+          value: "128" #maintain this or else there may be a chance of buffer issues
+        - name: LOGSTASH_PREFIX
+          value: ow-dev # use a prefix for your index pattern in kibana
+        - name: LOGSTASH_DATEFORMAT
+          value: '%Y.%m.%d' #time format, if you remove it will take empty
+        image: krish143434/fluentd-elasticsearch-aws:latest
+        imagePullPolicy: IfNotPresent
+        name: fluentd-elasticsearch
+        resources:
+          limits:
+            memory: 500Mi
+          requests:
+            cpu: 100m
+            memory: 200Mi
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /var/log
+          name: varlog
+        - mountPath: /var/lib/docker/containers
+          name: varlibdockercontainers
+          readOnly: true
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      serviceAccount: fluentd
+      serviceAccountName: fluentd
+      tolerations:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/master
+      volumes:
+      - hostPath:
+          path: /var/log
+          type: ""
+        name: varlog
+      - hostPath:
+          path: /var/lib/docker/containers
+          type: ""
+        name: varlibdockercontainers
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fluentd
+  namespace: kube-logging
+  labels:
+    app: fluentd
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: fluentd
+  labels:
+    app: fluentd
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  - namespaces
+  verbs:
+  - get
+  - list
+  - watch
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: fluentd
+  labels:
+    app: fluentd
+roleRef:
+  kind: ClusterRole
+  name: fluentd
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+- kind: ServiceAccount
+  name: fluentd
+  namespace: kube-logging
