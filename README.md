@@ -16,3 +16,5 @@ You must configure the following environment variables:
 
 * `LOGSTASH_PREFIX`
 * `LOGSTASH_DATEFORMAT`
+
+##### please feel free to raise a PR for any new feature!
